@@ -1,4 +1,12 @@
-node_modules/
+# Flutter/Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE and editor files
+.vscode/
+.idea/
+*.imlnode_modules/
 .next/
 dist/
 build/
