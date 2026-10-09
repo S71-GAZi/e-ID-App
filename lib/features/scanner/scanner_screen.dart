@@ -1,11 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../../../app/config/app_config.dart';
-import '../../../app/l10n/app_strings.dart';
-import '../../cards/domain/card_models.dart';
-import '../../cards/domain/vcard_builder.dart';
+import '../../app/config/app_config.dart';
+import '../../app/l10n/app_strings.dart';
+import '../received/received_card_screen.dart';
+import '../cards/domain/card_models.dart';
+import '../cards/domain/vcard_builder.dart';
 
 /// Result types emitted by the scanner.
 sealed class ScanResult {
@@ -81,12 +84,18 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     if (widget.onResult != null) {
       widget.onResult!(result);
     } else if (result is ScanOnlineLink) {
-      Navigator.of(context).pushNamed('/received/${result.shortCode}');
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ReceivedCardScreen(shortCode: result.shortCode),
+      ));
     } else if (result is ScanVCard) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppStrings.of(context).scanQr}: ${result.card.fullName}')),
-      );
-      Navigator.of(context).pop(result);
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ReceivedCardScreen(
+          shortCode: result.card.shortCode.isEmpty
+              ? result.card.fullName
+              : result.card.shortCode,
+          snapshotJson: jsonEncode(result.card.toJson()),
+        ),
+      ));
     } else {
       setState(() => _handled = false);
       _controller.start();

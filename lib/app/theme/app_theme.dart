@@ -25,16 +25,20 @@ class AppColors {
 }
 
 /// Central theme factory — light and dark, Material 3, card-like surfaces
-/// with rounded corners and subtle elevation.
+/// with rounded corners and subtle elevation. The [seed] parameter lets the
+/// user's chosen accent color (Settings → Accent color) re-theme the whole
+/// app; defaults to the brand indigo.
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData light() => _base(Brightness.light);
-  static ThemeData dark() => _base(Brightness.dark);
+  static ThemeData light({Color seed = AppColors.primary}) =>
+      _base(Brightness.light, seed);
+  static ThemeData dark({Color seed = AppColors.primary}) =>
+      _base(Brightness.dark, seed);
 
-  static ThemeData _base(Brightness brightness) {
+  static ThemeData _base(Brightness brightness, Color seed) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: seed,
       brightness: brightness,
     );
     final base = ThemeData(

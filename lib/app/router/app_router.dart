@@ -8,6 +8,7 @@ import '../../features/auth/presentation/auth_screen.dart';
 import '../../features/cards/presentation/my_cards_screen.dart';
 import '../../features/received/received_card_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
+import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/share/qr_screen.dart';
 import '../../features/wallet/presentation/wallet_screen.dart';
 
@@ -15,8 +16,10 @@ import '../../features/wallet/presentation/wallet_screen.dart';
 class Routes {
   static const auth = '/auth';
   static const home = '/';
+  static const wallet = '/wallet';
   static const share = '/share';
   static const scan = '/scan';
+  static const settings = '/settings';
   static const received = '/received'; // /received/:shortCode
 }
 
@@ -45,12 +48,13 @@ GoRouter buildRouter() {
               pageBuilder: (_, __) =>
                   const NoTransitionPage(child: MyCardsScreen())),
           GoRoute(
-              path: '/wallet',
+              path: Routes.wallet,
               pageBuilder: (_, __) =>
                   const NoTransitionPage(child: WalletScreen())),
         ],
       ),
       GoRoute(path: Routes.scan, builder: (_, __) => const ScannerScreen()),
+      GoRoute(path: Routes.settings, builder: (_, __) => const SettingsScreen()),
       GoRoute(
         path: '${Routes.received}/:shortCode',
         builder: (_, state) => ReceivedCardScreen(
@@ -86,7 +90,8 @@ class ShareCardGate extends ConsumerWidget {
   }
 }
 
-/// Bottom-navigation shell with three tabs: My cards / Wallet / +actions.
+/// Bottom-navigation shell with two tabs (My cards / Wallet), a scan FAB and
+/// a Settings action in the app bars of tab screens.
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.currentPath, required this.child});
 
@@ -120,9 +125,9 @@ class HomeShell extends StatelessWidget {
         onDestinationSelected: (i) {
           switch (i) {
             case 0:
-              if (currentPath != '/') context.go(Routes.home);
+              if (currentPath != Routes.home) context.go(Routes.home);
             case 1:
-              if (currentPath != '/wallet') context.go('/wallet');
+              if (currentPath != Routes.wallet) context.go(Routes.wallet);
           }
         },
       ),

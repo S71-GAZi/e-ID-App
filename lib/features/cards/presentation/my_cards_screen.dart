@@ -24,7 +24,16 @@ class MyCardsScreen extends ConsumerWidget {
     final cardsAsync = ref.watch(userCardsStreamProvider(userId));
 
     return Scaffold(
-      appBar: AppBar(title: Text(strings.tabMyCards)),
+      appBar: AppBar(
+        title: Text(strings.tabMyCards),
+        actions: [
+          IconButton(
+            tooltip: strings.settings,
+            icon: const Icon(Icons.settings_rounded),
+            onPressed: () => context.push(Routes.settings),
+          ),
+        ],
+      ),
       body: cardsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(icon: Icons.cloud_off, message: strings.networkError),
