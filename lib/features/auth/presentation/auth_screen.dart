@@ -9,6 +9,9 @@ import '../../auth/data/supabase_providers.dart';
 import '../data/card_repository.dart';
 
 /// Email/password sign-in + sign-up + password reset, Google & Apple OAuth.
+/// When Supabase is not configured (or the user prefers), the app runs in
+/// OFFLINE MODE with a local device account — full card creation, QR sharing
+/// and wallet work without any server.
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
@@ -191,11 +194,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    // Offline-first: continue with a local device account.
+                    FilledButton.tonalIcon(
+                      onPressed: _busy ? null : _continueOffline,
+                      icon: const Icon(Icons.wifi_off_rounded),
+                      label: Text(strings.continueOffline),
+                    ),
                     if (!AppConfig.hasSupabase)
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
                         child: Text(
-                          '⚠ Supabase keys missing — configure with --dart-define',
+                          strings.offlineModeNote,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error, fontSize: 12),

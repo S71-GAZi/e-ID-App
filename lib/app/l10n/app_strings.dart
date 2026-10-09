@@ -132,7 +132,7 @@ class AppStrings {
   final String passwordResetSubject;
 
   static const AppStrings en = AppStrings(
-    appName: 'Smart Card',
+    appName: 'E-ID',
     tagline: 'Your business card, one tap away',
     signIn: 'Sign in',
     signUp: 'Create account',
@@ -188,13 +188,13 @@ class AppStrings {
     networkError: 'Network error. Check your connection.',
     validationRequired: 'This field is required',
     validationUrl: 'Enter a valid URL (https://…)',
-    passwordResetSubject: 'Reset your Smart Card password',
+    passwordResetSubject: 'Reset your E-ID password',
   );
 
   /// Example second locale — fill in real translations when localization is
   /// scheduled. Falls back to [en] for any missing strings.
   static const AppStrings es = AppStrings(
-    appName: 'Smart Card',
+    appName: 'E-ID',
     tagline: 'Tu tarjeta de presentación, a un toque',
     signIn: 'Iniciar sesión',
     signUp: 'Crear cuenta',
@@ -250,7 +250,7 @@ class AppStrings {
     networkError: 'Error de red. Revisa tu conexión.',
     validationRequired: 'Este campo es obligatorio',
     validationUrl: 'Ingresa una URL válida (https://…)',
-    passwordResetSubject: 'Restablece tu contraseña de Smart Card',
+    passwordResetSubject: 'Restablece tu contraseña de E-ID',
   );
 
   static const Map<Locale, AppStrings> _all = {

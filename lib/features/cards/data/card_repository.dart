@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/config/app_config.dart';
+import '../../../core/storage/local_db.dart';
 import '../../../core/utils/short_code.dart';
 import '../../auth/data/supabase_providers.dart';
 import '../domain/card_models.dart';
+import 'card_sync_service.dart';
 
 /// All auth operations for the app. UI depends only on this class.
 class AuthRepository {
@@ -52,32 +57,32 @@ class AuthRepository {
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(ref));
 
-/// Cards owned by the current user. Realtime updates are handled in Phase 2;
-/// for now a simple query stream keeps the list fresh on changes.
+/// Cards owned by the current user. OFFLINE-FIRST: reads/writes go to the
+/// local Drift database immediately; when a Supabase session exists, changes
+/// are queued (dirty flag) and pushed by [CardSyncService].
 class CardRepository {
   CardRepository(this._ref);
 
   final Ref _ref;
-  SupabaseClient get _client => _ref.watch(supabaseClientProvider);
+  LocalDb get _db => _ref.watch(localDbProvider);
 
-  Stream<List<Card>> watchUserCards(String userId) {
-    return _client
-        .from('cards')
-        .select('''
-          *,
-          card_links ( id, type, url, sort_order )
-        ''')
-        .eq('user_id', userId)
-        .order('created_at')
-        .withConverter(
-          (rows, count) => rows.map(_rowToCard).toList(),
-        );
+  /// Cloud client, but only when configured AND signed in to the cloud.
+  SupabaseClient? get _cloudClient {
+    if (!AppConfig.hasSupabase) return null;
+    if (_ref.watch(currentUserIdProvider) == null) return null;
+    return _ref.watch(supabaseClientProvider);
   }
 
+  Stream<List<Card>> watchUserCards(String userId) => _db.watchLocalCards(userId);
+
+  Future<List<Card>> cardsOf(String userId) => _db.localCardsOf(userId);
+
   Future<Card> fetchByShortCode(String shortCode) async {
+    final client = _cloudClient;
+    if (client == null) throw const CardNotFoundException();
     // Public read of visible fields only — enforced by RLS + a security
-    // definer view/function on the backend (see supabase/migrations.sql).
-    final row = await _client
+    // definer view on the backend (see supabase/migrations.sql).
+    final row = await client
         .from('public_cards')
         .select('*')
         .eq('short_code', shortCode)
@@ -85,69 +90,80 @@ class CardRepository {
     if (row == null) {
       throw const CardNotFoundException();
     }
-    return _rowToCard(row);
+    return Card.fromRow(row);
   }
 
-  Future<Card> createCard(Card draft) async {
-    final row = await _client
-        .from('cards')
-        .insert(draft.toRow()..['short_code'] = ShortCode.generate())
-        .select()
-        .single();
-    await _replaceLinks(row['id'] as String, draft.socialLinks);
-    return _rowToCard(row);
-  }
-
-  Future<Card> updateCard(Card card) async {
-    final payload = card.toRow()
-      ..remove('id')
-      ..remove('user_id')
-      ..remove('short_code') // short code is immutable once issued
-      ..['updated_at'] = DateTime.now().toUtc().toIso8601String();
-    final row = await _client
-        .from('cards')
-        .update(payload)
-        .eq('id', card.id)
-        .select()
-        .single();
-    await _replaceLinks(card.id, card.socialLinks);
-    return _rowToCard(row);
-  }
-
-  Future<void> deleteCard(String cardId) =>
-      _client.from('cards').delete().eq('id', cardId);
-
-  Future<void> setActive(String cardId, bool isActive) => _client
-      .from('cards')
-      .update({'is_active': isActive}).eq('id', cardId);
-
-  Future<void> uploadPhoto(String userId, String cardId, List<int> bytes) async {
-    final path = 'photos/$userId/$card.jpg';
-    await _client.storage
-        .from('card-photos')
-        .uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
-  }
-
-  String publicPhotoUrl(String userId) =>
-      _client.storage.from('card-photos').getPublicUrl('photos/$userId/card.jpg');
-
-  Future<void> _replaceLinks(String cardId, List<SocialLink> links) async {
-    await _client.from('card_links').delete().eq('card_id', cardId);
-    if (links.isEmpty) return;
-    await _client.from('card_links').insert([
-      for (var i = 0; i < links.length; i++)
-        {'card_id': cardId, 'type': links[i].type.name, 'url': links[i].url, 'sort_order': i},
-    ]);
-  }
-
-  Card _rowToCard(Map<String, dynamic> row) {
-    var card = Card.fromRow(row);
-    if (card.photoUrl == null && card.userId.isNotEmpty) {
-      // Fall back to conventional storage path if column is empty.
-      card = card.copyWith(photoUrl: null);
+  /// Creates (or updates) a card locally and issues an unguessable short
+  /// code on first save. The online QR works even before sync because the
+  /// code is minted on-device and reserved server-side at sync time.
+  Future<Card> saveCard(Card draft) async {
+    var card = draft;
+    if (card.shortCode.isEmpty) {
+      card = card.copyWith(shortCode: ShortCode.generate());
     }
+    final now = DateTime.now();
+    card = Card(
+      id: card.id,
+      userId: card.userId,
+      label: card.label,
+      fullName: card.fullName,
+      title: card.title,
+      company: card.company,
+      phones: card.phones,
+      emails: card.emails,
+      website: card.website,
+      address: card.address,
+      bio: card.bio,
+      photoUrl: card.photoUrl,
+      themeColor: card.themeColor,
+      template: card.template,
+      visibility: card.visibility,
+      shortCode: card.shortCode,
+      isActive: card.isActive,
+      socialLinks: card.socialLinks,
+      createdAt: card.createdAt ?? now,
+      updatedAt: now,
+    );
+    await _db.upsertLocalCard(card);
+    // Fire-and-forget sync attempt; failures stay queued as `dirty`.
+    _trySync();
     return card;
   }
+
+  void _trySync() {
+    // Best-effort: push pending changes when a cloud session exists.
+    try {
+      _ref.read(cardSyncServiceProvider).syncNow();
+    } catch (_) {/* container not ready — queue survives */}
+  }
+
+  Future<Card> createCard(Card draft) => saveCard(draft);
+
+  Future<Card> updateCard(Card card) => saveCard(card);
+
+  Future<void> deleteCard(String cardId) async {
+    await _db.markLocalCardDeleted(cardId);
+    _trySync();
+  }
+
+  Future<void> setActive(String cardId, bool isActive) async {
+    await _db.setLocalCardActive(cardId, isActive);
+    _trySync();
+  }
+
+  Future<void> uploadPhoto(String userId, String cardId, List<int> bytes) async {
+    final client = _cloudClient;
+    if (client == null) return; // offline: photo stays local for now
+    final path = 'photos/$userId/$card.jpg';
+    await client.storage
+        .from('card-photos')
+        .uploadBinary(path, Uint8List.fromList(bytes),
+            fileOptions: const FileOptions(contentType: 'image/jpeg'));
+  }
+
+  String? publicPhotoUrl(String userId) => _cloudClient?.storage
+      .from('card-photos')
+      .getPublicUrl('photos/$userId/card.jpg');
 }
 
 class CardNotFoundException implements Exception {

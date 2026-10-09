@@ -253,6 +253,48 @@ class Card {
         'social_links': socialLinks.map((l) => l.toJson()).toList(),
       };
 
+  /// Full-fidelity snapshot for the LOCAL database (own cards): includes
+  /// visibility settings and active flag which must never leave the device
+  /// unapplied.
+  Map<String, dynamic> toSnapshot() => {
+        ...toJson(),
+        'user_id': userId,
+        'is_active': isActive,
+        'visibility': visibility.toMap(),
+        'created_at': createdAt?.toIso8601String(),
+        'updated_at': updatedAt?.toIso8601String(),
+      };
+
+  factory Card.fromSnapshot(Map<String, dynamic> j) => Card(
+        id: j['id'] as String? ?? '',
+        userId: j['user_id'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        fullName: j['full_name'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        company: j['company'] as String? ?? '',
+        phones: _stringList(j['phones']),
+        emails: _stringList(j['emails']),
+        website: j['website'] as String? ?? '',
+        address: j['address'] as String? ?? '',
+        bio: j['bio'] as String? ?? '',
+        photoUrl: j['photo_url'] as String?,
+        themeColor: j['theme'] as String? ?? '#3D5AFE',
+        template: j['template'] as String? ?? 'classic',
+        visibility: VisibilitySettings.fromMap(
+            (j['visibility'] as Map?)?.cast<String, dynamic>()),
+        shortCode: j['short_code'] as String? ?? '',
+        isActive: j['is_active'] as bool? ?? true,
+        socialLinks: ((j['social_links'] as List?) ?? const [])
+            .map((e) => SocialLink.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+        createdAt: j['created_at'] != null
+            ? DateTime.tryParse(j['created_at'] as String)
+            : null,
+        updatedAt: j['updated_at'] != null
+            ? DateTime.tryParse(j['updated_at'] as String)
+            : null,
+      );
+
   factory Card.fromJsonSnapshot(Map<String, dynamic> j) => Card(
         id: j['id'] as String? ?? '',
         userId: '',

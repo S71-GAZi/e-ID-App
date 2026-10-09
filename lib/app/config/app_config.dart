@@ -12,7 +12,12 @@
 class AppConfig {
   const AppConfig._();
 
-  /// Supabase project URL (required).
+  /// Application name shown in the UI and native app manifests.
+  static const String appName =
+      String.fromEnvironment('APP_NAME', defaultValue: 'E-ID');
+
+  /// Supabase project URL (optional for now — the app is offline-first and
+  /// works fully without a backend; sync activates once keys are provided).
   static const String supabaseUrl =
       String.fromEnvironment('SUPABASE_URL', defaultValue: '');
 
@@ -21,15 +26,20 @@ class AppConfig {
   static const String supabaseAnonKey =
       String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
 
-  /// Base URL used in online QR short links: <base>/c/<shortCode>.
+  /// Placeholder domain used in online QR short links: <base>/c/<shortCode>.
+  /// It does NOT need to resolve anywhere while you test: an installed E-ID
+  /// app intercepts these links via deep linking, and any phone camera can
+  /// still read the text. Replace with your real domain later via
+  /// --dart-define=PUBLIC_BASE_URL=https://yourdomain.com (Phase 3 wires up
+  /// Universal Links / App Links + the web card page on that domain).
   static const String publicBaseUrl = String.fromEnvironment(
     'PUBLIC_BASE_URL',
-    defaultValue: 'https://cards.example.com',
+    defaultValue: 'https://eid.pages.dev',
   );
 
-  /// Link that opens the app when installed (Universal Links / App Links host).
-  static const String appLinkHost =
-      String.fromEnvironment('APP_LINK_HOST', defaultValue: 'cards.example.com');
+  /// Host of [publicBaseUrl] — used by the scanner/deep-link router to
+  /// recognise our short links.
+  static String get appLinkHost => Uri.parse(publicBaseUrl).host;
 
   /// Store URLs shown on the web card page and inside the app.
   static const String iosAppStoreUrl =
